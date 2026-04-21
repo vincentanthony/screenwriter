@@ -12,7 +12,7 @@ import { docToScreenplay } from './serialization/fromTiptap';
 import { screenplayToDoc } from './serialization/toTiptap';
 
 import { SCREENPLAY_NODES } from './nodes';
-import { CharacterUppercase, ElementKeymap } from './extensions';
+import { SCREENPLAY_EXTENSIONS } from './extensions';
 
 /**
  * Hook that stands up a TipTap Editor configured for screenwriting:
@@ -83,8 +83,7 @@ export function useScreenplayEditor({
         code: false,
       }),
       ...SCREENPLAY_NODES,
-      ElementKeymap,
-      CharacterUppercase,
+      ...SCREENPLAY_EXTENSIONS,
     ],
     editorProps: {
       attributes: {
