@@ -1,0 +1,67 @@
+Title: Reference Screenplay
+Credit: Written by
+Author: Test Harness
+Source: Based on nothing
+Draft date: 2026-04-21
+Contact: test@example.com
+
+# Act One
+
+= The hero discovers the macguffin.
+
+INT. COFFEE SHOP - DAY
+
+A bustling scene. ALICE sips an espresso.
+
+ALICE
+I can't believe we're doing this.
+
+BOB
+(leaning in)
+Believe it.
+
+.DREAMSCAPE - LIMBO
+
+A forced scene heading, just for context.
+
+!INT. NOT A SCENE HEADING. BUT IT LOOKS LIKE ONE.
+
+@alice
+I'm a forced lowercase character.
+
+ALICE
+Speaking now.
+
+BOB ^
+And speaking simultaneously.
+
+> FADE OUT.
+
+CUT TO:
+
+INT. ROOFTOP - NIGHT
+
+Rain sheets down. [[This note is inline and should survive.]]
+
+/*
+Boneyard block - drafts, ideas, etc.
+*/
+
+[[A standalone note on its own line.]]
+
+~Singin' in the rain
+~Just singin' in the rain
+
+> THE END <
+
+===
+
+## Act Two
+
+= Everything falls apart.
+
+EXT. DESERT - DAY
+
+A **bold** statement, *emphasis*, and _underscore_ markers.
+
+FADE OUT.
