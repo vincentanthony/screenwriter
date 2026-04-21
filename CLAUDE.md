@@ -38,3 +38,9 @@ locally, reopen it, and export a clean FDX file. Nothing more.
 - Commit after each logical unit of work with clear messages.
 - When unsure, ask. Don't guess at product decisions.
 - Flag when you're about to do something that contradicts the principles above.
+
+## Working style (worktrees)
+Do NOT create separate git worktrees for your work. Operate directly in
+the primary working tree on the current branch. Commits should land where
+I can see them with `git log` from the project root, no merging from
+side branches required.
