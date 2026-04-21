@@ -38,7 +38,9 @@ function renderElement(el: ScreenplayElement): string[] {
       return el.fields.map((f) => `${f.key}: ${f.value}`);
 
     case 'scene':
-      return [el.forced ? `.${el.text}` : el.text];
+      // Natural scene headings must be uppercase to re-parse. Forced scenes
+      // (`.slug`) bypass the prefix rule and may carry mixed-case text.
+      return [el.forced ? `.${el.text}` : el.text.toUpperCase()];
 
     case 'action':
       // Action text may contain newlines — split so the serializer's
@@ -46,7 +48,10 @@ function renderElement(el: ScreenplayElement): string[] {
       return (el.forced ? `!${el.text}` : el.text).split('\n');
 
     case 'character': {
-      let line = el.forced ? `@${el.text}` : el.text;
+      // Natural character names must be all-uppercase in Fountain.
+      // `@name` is the forced variant that allows lowercase.
+      const text = el.forced ? el.text : el.text.toUpperCase();
+      let line = el.forced ? `@${text}` : text;
       if (el.dual) line += ' ^';
       return [line];
     }
@@ -58,7 +63,8 @@ function renderElement(el: ScreenplayElement): string[] {
       return el.text.split('\n');
 
     case 'transition':
-      return [el.forced ? `> ${el.text}` : el.text];
+      // Natural transitions must be uppercase; `> forced` may be mixed-case.
+      return [el.forced ? `> ${el.text}` : el.text.toUpperCase()];
 
     case 'centered':
       return [`> ${el.text} <`];

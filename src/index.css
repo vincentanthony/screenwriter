@@ -35,3 +35,82 @@
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 }
+
+/**
+ * Screenplay element styling. Intentionally minimal for v1 — enough to
+ * read and write comfortably, not a full Final Draft replica. Real page
+ * layout (strict indents in inches, page breaks, etc.) is out of scope.
+ *
+ * Every class corresponds to an entry in NODE_HTML (nodeNames.ts).
+ */
+@layer components {
+  .sw-screenplay {
+    @apply font-screenplay text-base leading-6 max-w-prose mx-auto;
+  }
+
+  .sw-screenplay > * {
+    @apply my-0;
+  }
+
+  .sw-scene {
+    @apply mt-6 font-bold uppercase tracking-wide;
+  }
+
+  .sw-action {
+    @apply mt-3;
+  }
+
+  /* Character: uppercase is enforced in the document by the
+     CharacterUppercase extension; CSS also uppercases for visual
+     consistency while typing a forced-mixed-case @name. */
+  .sw-character {
+    @apply mt-4 uppercase text-center;
+  }
+
+  .sw-character[data-dual='true']::after {
+    content: ' ⇔ dual';
+    @apply ml-2 text-xs font-normal text-muted-foreground;
+  }
+
+  .sw-parenthetical {
+    @apply italic text-center;
+  }
+  .sw-parenthetical::before { content: '('; }
+  .sw-parenthetical::after  { content: ')'; }
+
+  .sw-dialogue {
+    @apply px-8 text-center;
+  }
+
+  .sw-transition {
+    @apply mt-4 uppercase text-right;
+  }
+
+  .sw-centered {
+    @apply mt-3 text-center;
+  }
+
+  .sw-note {
+    @apply italic text-muted-foreground;
+  }
+
+  .sw-boneyard {
+    @apply line-through text-muted-foreground whitespace-pre-wrap;
+  }
+
+  .sw-section {
+    @apply mt-6 font-bold border-l-4 border-primary pl-2;
+  }
+
+  .sw-synopsis {
+    @apply italic text-muted-foreground;
+  }
+
+  .sw-lyric {
+    @apply italic;
+  }
+
+  .sw-page-break {
+    @apply my-8 border-t-2 border-dashed border-border;
+  }
+}
