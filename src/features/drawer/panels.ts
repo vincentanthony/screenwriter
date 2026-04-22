@@ -14,15 +14,36 @@ export interface DrawerPanelProps {
   onTitlePageUpdate: (fields: TitlePageField[]) => void;
 }
 
+/**
+ * Contract for a panel's optional main-area override. When a panel
+ * provides a MainArea component, ScriptEditor renders it in place of
+ * the TipTap editor view (which stays MOUNTED but hidden — writers
+ * flip between modes and we don't want to rebuild the editor each time).
+ *
+ * Today MainArea just needs title-page fields; future panels may want
+ * richer context (script body, scene list, export state). Add props
+ * here as real panels arrive — don't speculate.
+ */
+export interface MainAreaProps {
+  titlePage: TitlePageField[] | null;
+}
+
 export interface DrawerPanel {
   id: string;
   label: string;
   icon: LucideIcon;
   /**
-   * Lazy import so the chassis boots without loading every panel's code.
-   * Adding a new panel = one entry here + one new file under ./panels/.
+   * The panel body that renders inside the drawer itself. Lazy so the
+   * chassis boots without loading every panel's code.
    */
   Component: LazyExoticComponent<ComponentType<DrawerPanelProps>>;
+  /**
+   * Optional main-area override. When present, ScriptEditor hides the
+   * TipTap editor view and renders this instead. When absent, the
+   * editor keeps rendering (e.g., a future Scene Navigator panel might
+   * leave the editor visible while adding navigation beside it).
+   */
+  MainArea?: LazyExoticComponent<ComponentType<MainAreaProps>>;
 }
 
 export const DRAWER_PANELS: readonly DrawerPanel[] = [
@@ -32,6 +53,9 @@ export const DRAWER_PANELS: readonly DrawerPanel[] = [
     icon: ScrollText,
     Component: lazy(() =>
       import('./panels/TitlePagePanel').then((m) => ({ default: m.TitlePagePanel })),
+    ),
+    MainArea: lazy(() =>
+      import('./panels/TitlePagePreview').then((m) => ({ default: m.TitlePagePreview })),
     ),
   },
 ] as const;

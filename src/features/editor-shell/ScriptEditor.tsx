@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { EditorContent } from '@tiptap/react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
 import { useScreenplayEditor } from '@/editor';
 import { docToScreenplay } from '@/editor/serialization/fromTiptap';
 import type { TipTapDoc } from '@/editor/serialization/types';
@@ -13,6 +14,8 @@ import { useAutosave } from '@/hooks/useAutosave';
 import { getRepository } from '@/storage/repository';
 import type { Script } from '@/types/script';
 import { Drawer } from '@/features/drawer/Drawer';
+import { findDrawerPanel } from '@/features/drawer/panels';
+import { useDrawerState } from '@/features/drawer/useDrawerState';
 import { SaveIndicator } from './SaveIndicator';
 import { DraftRestoreBanner } from './DraftRestoreBanner';
 
@@ -21,16 +24,18 @@ interface Props {
 }
 
 /**
- * The live screenplay editor for a single script. Mounts the TipTap
- * editor, wires autosave, reconciles any drift between the draft row
- * and the canonical Fountain, and owns the title-page state that the
- * drawer's Title Page panel reads and writes.
+ * Session shell for a single script. Owns:
+ *   - Title-page state (for the drawer's Title Page panel + the preview)
+ *   - Initial-fountain resolution (script.fountain vs. any newer draft)
+ *   - The TipTap editor instance (via useScreenplayEditor)
+ *   - Autosave wiring
  *
- * Layout: a two-column CSS grid with the Drawer on the left and the
- * editor column on the right. The Drawer's own `grid-template-columns`
- * transition (driven by its width change) reflows the editor column,
- * so the editor actually narrows rather than being covered by an
- * overlay.
+ * Also acts as the "mode orchestrator": reads the drawer's active panel
+ * and, if that panel declares a MainArea override, hides the editor
+ * view and renders the override in its place. The editor instance is
+ * NEVER destroyed on mode switch — undo history and hydration cost
+ * are preserved by simply toggling a `hidden` class on the editor's
+ * wrapper div.
  */
 export function ScriptEditor({ script }: Props) {
   const [initialFountain, setInitialFountain] = useState<string | null>(null);
@@ -62,9 +67,7 @@ export function ScriptEditor({ script }: Props) {
     };
   }, [script.id, script.fountain, script.updatedAt]);
 
-  // Extract the title page from whichever Fountain we settled on. Runs
-  // alongside editor hydration — both observe the same initialFountain
-  // state so they stay consistent without an ordering contract.
+  // Extract the title page from whichever Fountain we settled on.
   useEffect(() => {
     if (initialFountain == null) return;
     const elements = parse(initialFountain);
@@ -83,16 +86,6 @@ export function ScriptEditor({ script }: Props) {
     onFountainChange,
   });
 
-  /**
-   * Title-page panel → autosave bridge.
-   *
-   * The hook serializes body transactions using whatever titlePage ref it
-   * currently holds, so on pure editor edits we never need to do this.
-   * But when the user edits the TITLE PAGE itself (the editor doesn't
-   * fire onUpdate), we have to re-serialize explicitly using the new
-   * fields + the current body and push the result into the autosave
-   * pipeline.
-   */
   const handleTitlePageUpdate = useCallback(
     (fields: TitlePageField[]) => {
       setTitlePage(fields);
@@ -117,12 +110,24 @@ export function ScriptEditor({ script }: Props) {
     setPendingDraft(null);
   };
 
+  // ── Mode orchestration ───────────────────────────────────────────────
+  // The drawer's active panel (if any) decides whether the main area
+  // still renders the editor or swaps in an override (e.g. Title Page
+  // preview). Both sides read the same drawer state from the URL so
+  // there's no second source of truth.
+  const { state: drawerState } = useDrawerState();
+  const activePanel =
+    drawerState.kind === 'panel' ? findDrawerPanel(drawerState.panelId) : null;
+  const MainArea = activePanel?.MainArea ?? null;
+
   return (
     <div className="grid min-h-screen grid-cols-[auto_1fr]">
       <Drawer titlePage={titlePage} onTitlePageUpdate={handleTitlePageUpdate} />
 
-      <main className="min-w-0">
-        <div className="container py-8">
+      <main className="flex min-w-0 flex-col">
+        {/* Top bar — visible across all modes so the writer never loses
+            their "where am I / what's being saved" context. */}
+        <div className="container flex-shrink-0 pb-4 pt-8">
           <div className="mb-6">
             <Button asChild variant="ghost" size="sm">
               <Link to="/">
@@ -131,28 +136,51 @@ export function ScriptEditor({ script }: Props) {
               </Link>
             </Button>
           </div>
-
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-2xl font-semibold tracking-tight">{script.title}</h1>
             <SaveIndicator state={state} />
           </div>
+        </div>
 
-          {pendingDraft && (
-            <DraftRestoreBanner
-              draftUpdatedAt={pendingDraft.draftUpdatedAt}
-              onRestore={restoreDraft}
-              onDiscard={discardDraft}
-            />
-          )}
-
-          <div className="rounded-md border bg-card">
-            <EditorContent editor={editor} />
+        {/* Mode-specific body. The editor-view div is ALWAYS rendered so
+            the TipTap instance keeps its undo history + initial hydration
+            across mode switches; when a MainArea override is active, we
+            just flip `hidden` on this wrapper. See the integration test
+            that asserts the same DOM reference survives the toggle. */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            data-testid="editor-view"
+            className={cn('container pb-8', MainArea && 'hidden')}
+          >
+            {pendingDraft && (
+              <DraftRestoreBanner
+                draftUpdatedAt={pendingDraft.draftUpdatedAt}
+                onRestore={restoreDraft}
+                onDiscard={discardDraft}
+              />
+            )}
+            <div className="rounded-md border bg-card">
+              <EditorContent editor={editor} />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Undo is per session — reloading clears the undo history. Recent saves
+              are preserved in a 5-entry snapshot ring.
+            </p>
           </div>
 
-          <p className="mt-2 text-xs text-muted-foreground">
-            Undo is per session — reloading clears the undo history. Recent saves
-            are preserved in a 5-entry snapshot ring.
-          </p>
+          {MainArea && (
+            <Suspense
+              fallback={
+                <div className="p-8 text-sm text-muted-foreground">
+                  Loading panel view…
+                </div>
+              }
+            >
+              <div className="min-h-0 flex-1">
+                <MainArea titlePage={titlePage} />
+              </div>
+            </Suspense>
+          )}
         </div>
       </main>
     </div>
