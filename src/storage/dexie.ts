@@ -1,4 +1,10 @@
-import type { Script, ScriptMeta, Draft, Snapshot } from '@/types/script';
+import type {
+  Script,
+  ScriptMeta,
+  Draft,
+  Snapshot,
+  RecordedPageBreak,
+} from '@/types/script';
 import type { ScriptRepository } from './repository';
 import { ScreenwriterDB, SNAPSHOT_RING_SIZE } from './schema';
 import { newId } from '@/lib/id';
@@ -19,7 +25,11 @@ export class DexieScriptRepository implements ScriptRepository {
     return (await this.db.scripts.get(id)) ?? null;
   }
 
-  async create(input: { title: string; fountain?: string }): Promise<Script> {
+  async create(input: {
+    title: string;
+    fountain?: string;
+    importedPageBreaks?: RecordedPageBreak[];
+  }): Promise<Script> {
     const now = Date.now();
     const script: Script = {
       id: newId(),
@@ -27,6 +37,9 @@ export class DexieScriptRepository implements ScriptRepository {
       fountain: input.fountain ?? '',
       createdAt: now,
       updatedAt: now,
+      ...(input.importedPageBreaks && input.importedPageBreaks.length > 0
+        ? { importedPageBreaks: input.importedPageBreaks }
+        : {}),
     };
     await this.db.scripts.add(script);
     return script;

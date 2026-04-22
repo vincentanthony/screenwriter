@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="5">
+<Content>
+<Paragraph Type="Scene Heading">
+<SceneProperties Length="1/8" Page="1" Title="" Number="1"><SceneArcBeats></SceneArcBeats></SceneProperties>
+<Text>INT. COFFEE SHOP - DAY</Text>
+</Paragraph>
+<Paragraph Type="Action">
+<Text>Alice sips an espresso. Rain taps against the window.</Text>
+</Paragraph>
+<Paragraph Type="Character">
+<Text>ALICE</Text>
+</Paragraph>
+<Paragraph Type="Dialogue">
+<Text>I can't believe we're doing this.</Text>
+</Paragraph>
+<Paragraph Type="Character">
+<Text>BOB</Text>
+</Paragraph>
+<Paragraph Type="Parenthetical">
+<Text>(leaning in)</Text>
+</Paragraph>
+<Paragraph Type="Dialogue">
+<Text>Believe it.</Text>
+</Paragraph>
+<Paragraph Type="Scene Heading">
+<SceneProperties Length="1/8" Page="2" Title="" Number="2"><SceneArcBeats></SceneArcBeats></SceneProperties>
+<Text>EXT. STREET - NIGHT</Text>
+</Paragraph>
+<Paragraph Type="Action">
+<Text>Rain sheets down. Alice walks alone.</Text>
+</Paragraph>
+<Paragraph Type="Character">
+<Text>ALICE</Text>
+</Paragraph>
+<Paragraph Type="Dialogue">
+<Text>So this is how it ends.</Text>
+</Paragraph>
+<Paragraph Type="Scene Heading">
+<SceneProperties Length="1/8" Page="3" Title="" Number="3"><SceneArcBeats></SceneArcBeats></SceneProperties>
+<Text>INT. CAR - CONTINUOUS</Text>
+</Paragraph>
+<Paragraph Type="Action">
+<Text>Bob watches her from the driver's seat. His hand rests on the keys.</Text>
+</Paragraph>
+<Paragraph Type="Transition">
+<Text>CUT TO BLACK.</Text>
+</Paragraph>
+</Content>
+<TitlePage>
+<Content>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text>PLACEHOLDER SCRIPT</Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text>Written by</Text></Paragraph>
+<Paragraph Alignment="Center"><Text></Text></Paragraph>
+<Paragraph Alignment="Center"><Text>Test Author</Text></Paragraph>
+<Paragraph Alignment="Left"><Text>test@example.com</Text></Paragraph>
+</Content>
+</TitlePage>
+</FinalDraft>

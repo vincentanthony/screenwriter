@@ -1,10 +1,20 @@
-import type { Script, ScriptMeta, Draft, Snapshot } from '@/types/script';
+import type {
+  Script,
+  ScriptMeta,
+  Draft,
+  Snapshot,
+  RecordedPageBreak,
+} from '@/types/script';
 import { DexieScriptRepository } from './dexie';
 
 export interface ScriptRepository {
   list(): Promise<ScriptMeta[]>;
   get(id: string): Promise<Script | null>;
-  create(input: { title: string; fountain?: string }): Promise<Script>;
+  create(input: {
+    title: string;
+    fountain?: string;
+    importedPageBreaks?: RecordedPageBreak[];
+  }): Promise<Script>;
   update(
     id: string,
     patch: Partial<Pick<Script, 'title' | 'fountain'>>,

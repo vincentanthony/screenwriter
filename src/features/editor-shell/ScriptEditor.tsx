@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
 import { cn } from '@/lib/cn';
 import { useScreenplayEditor } from '@/editor';
@@ -19,6 +20,7 @@ import { Drawer } from '@/features/drawer/Drawer';
 import { findDrawerPanel } from '@/features/drawer/panels';
 import { useDrawerState } from '@/features/drawer/useDrawerState';
 import { ExportMenu, type ExportPayload } from './ExportMenu';
+import { ImportWarningsBanner } from './ImportWarningsBanner';
 import { SaveIndicator } from './SaveIndicator';
 import { DraftRestoreBanner } from './DraftRestoreBanner';
 
@@ -66,6 +68,26 @@ export function ScriptEditor({ script }: Props) {
   const [titlePage, setTitlePage] = useState<TitlePageField[] | null>(null);
 
   const { settings: viewSettings, update: updateViewSettings } = useViewSettings();
+
+  // Import warnings arrive via router location state (set by the
+  // ScriptsPage Import flow when parseFDX returns warnings). Shown
+  // once in a dismissible banner; dismissing replaces the current
+  // history entry with no state so the banner doesn't reappear on
+  // back/forward navigation.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routerState = location.state as { importWarnings?: string[] } | null;
+  const [importWarnings, setImportWarnings] = useState<string[]>(() =>
+    Array.isArray(routerState?.importWarnings) ? routerState.importWarnings : [],
+  );
+  const dismissImportWarnings = useCallback(() => {
+    setImportWarnings([]);
+    // Strip the state so a refresh / back-forward doesn't re-surface it.
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: null,
+    });
+  }, [navigate, location.pathname, location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -288,6 +310,12 @@ export function ScriptEditor({ script }: Props) {
           )}
         >
           <div className="container pb-8 pt-6">
+            {importWarnings.length > 0 && (
+              <ImportWarningsBanner
+                warnings={importWarnings}
+                onDismiss={dismissImportWarnings}
+              />
+            )}
             {pendingDraft && (
               <DraftRestoreBanner
                 draftUpdatedAt={pendingDraft.draftUpdatedAt}

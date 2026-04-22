@@ -28,6 +28,7 @@
     "cmdk": "^1.0.4",
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^1.1.7",
+    "fast-xml-parser": "^5.7.1",
     "lucide-react": "^0.460.0",
     "nanoid": "^5.0.9",
     "react": "^18.3.1",
