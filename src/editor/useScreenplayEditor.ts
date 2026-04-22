@@ -17,46 +17,49 @@ import { SCREENPLAY_EXTENSIONS } from './extensions';
 /**
  * Hook that stands up a TipTap Editor configured for screenwriting:
  * StarterKit minus the blocks/marks that conflict with our screenplay
- * nodes, plus our thirteen SCREENPLAY_NODES and the two behavior
- * extensions (ElementKeymap, CharacterUppercase).
+ * nodes, plus the thirteen SCREENPLAY_NODES and SCREENPLAY_EXTENSIONS.
  *
- * Takes an `initialFountain` (null while the script is still loading from
- * storage) and an `onFountainChange` callback fired every time the editor's
- * content changes. Internally:
- *
- *   1. Creates the TipTap Editor once.
- *   2. When `initialFountain` first arrives, hydrates the doc via
- *      parse → screenplayToDoc → setContent — suppressing the update
- *      callback so the initial load doesn't count as a user edit.
- *   3. On every subsequent editor transaction, converts the ProseMirror
- *      JSON back to a ScreenplayElement[] (stitching the detached title
- *      page back in) and serializes to Fountain.
- *
- * Returns `{ editor, titlePageRef }`. `titlePageRef.current` is the detached
- * title-page the editor doesn't directly edit — v1 leaves it read-only.
+ * Ownership model (changed in the drawer commit):
+ *   - The editor still parses `initialFountain` once to build its
+ *     starting doc, but it NO LONGER owns the title-page fields.
+ *     ScriptEditor owns `titlePage` as React state so the drawer's
+ *     Title Page panel can read/write it.
+ *   - `titlePage` flows in as a prop. A ref mirrors it so the TipTap
+ *     `onUpdate` callback (captured at editor-creation time) always
+ *     reads the latest value without forcing editor recreation.
+ *   - On every editor transaction, we serialize the body back to
+ *     Fountain AND prepend whatever `titlePageRef.current` holds.
+ *     When ScriptEditor's handleTitlePageUpdate fires its own
+ *     serialize, it shortcuts through the same onFountainChange path.
  */
 
 export interface UseScreenplayEditorOptions {
   /** Fountain source, or null if the script hasn't loaded yet. */
   initialFountain: string | null;
+  /** Current title-page fields owned by the parent (ScriptEditor). */
+  titlePage: TitlePageField[] | null;
   /** Called with the current Fountain serialization on every change. */
   onFountainChange: (fountain: string) => void;
 }
 
 export interface UseScreenplayEditorResult {
   editor: Editor | null;
-  titlePageRef: React.MutableRefObject<TitlePageField[] | null>;
 }
 
 export function useScreenplayEditor({
   initialFountain,
+  titlePage,
   onFountainChange,
 }: UseScreenplayEditorOptions): UseScreenplayEditorResult {
-  const titlePageRef = useRef<TitlePageField[] | null>(null);
   const hydratedRef = useRef(false);
 
-  // Keep the latest onChange in a ref so TipTap's captured callback always
-  // fires the newest one without forcing editor recreation on every render.
+  // Mirror props into refs so TipTap's captured onUpdate always sees the
+  // latest values without forcing the editor to be torn down and rebuilt.
+  const titlePageRef = useRef<TitlePageField[] | null>(titlePage);
+  useEffect(() => {
+    titlePageRef.current = titlePage;
+  }, [titlePage]);
+
   const onChangeRef = useRef(onFountainChange);
   useEffect(() => {
     onChangeRef.current = onFountainChange;
@@ -108,16 +111,16 @@ export function useScreenplayEditor({
     if (initialFountain == null) return;
 
     const elements = parse(initialFountain);
-    const { titlePage, doc } = screenplayToDoc(elements);
-    titlePageRef.current = titlePage;
+    const { doc } = screenplayToDoc(elements);
 
-    const seededDoc = doc.content.length > 0
-      ? doc
-      : { type: 'doc' as const, content: [{ type: NODE_NAMES.action }] };
+    const seededDoc =
+      doc.content.length > 0
+        ? doc
+        : { type: 'doc' as const, content: [{ type: NODE_NAMES.action }] };
 
     editor.commands.setContent(seededDoc, false);
     hydratedRef.current = true;
   }, [editor, initialFountain]);
 
-  return { editor, titlePageRef };
+  return { editor };
 }
