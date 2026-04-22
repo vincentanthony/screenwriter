@@ -46,6 +46,70 @@ function afterEachCleanup() {
   setRepositoryForTesting(null);
 }
 
+describe('EditorPage — layout (independent scroll regions)', () => {
+  it('page root is h-screen flex-col (viewport frame, document does not scroll)', async () => {
+    const script = await setupWithScript('INT. ROOM - DAY\n');
+    try {
+      renderAt(`/scripts/${script.id}`);
+      const root = await screen.findByTestId('editor-page');
+      // Fixed viewport height so document scroll can't bleed drawer + main.
+      expect(root).toHaveClass('h-screen');
+      expect(root).toHaveClass('flex-col');
+    } finally {
+      afterEachCleanup();
+    }
+  });
+
+  it('top-bar row is flex-shrink-0 (stays above the scroll regions)', async () => {
+    const script = await setupWithScript('INT. ROOM - DAY\n');
+    try {
+      renderAt(`/scripts/${script.id}`);
+      const topbar = await screen.findByTestId('editor-page-topbar');
+      expect(topbar).toHaveClass('flex-shrink-0');
+    } finally {
+      afterEachCleanup();
+    }
+  });
+
+  it('body row is flex-1 min-h-0 flex (min-h-0 unlocks flex children shrinking for overflow)', async () => {
+    const script = await setupWithScript('INT. ROOM - DAY\n');
+    try {
+      renderAt(`/scripts/${script.id}`);
+      const body = await screen.findByTestId('editor-page-body');
+      expect(body).toHaveClass('flex-1');
+      expect(body).toHaveClass('min-h-0');
+      expect(body).toHaveClass('flex');
+    } finally {
+      afterEachCleanup();
+    }
+  });
+
+  it('main column has min-h-0 + flex-col so the editor view scrolls INSIDE it, not the page', async () => {
+    const script = await setupWithScript('INT. ROOM - DAY\n');
+    try {
+      renderAt(`/scripts/${script.id}`);
+      const main = await screen.findByTestId('editor-main');
+      expect(main).toHaveClass('min-h-0');
+      expect(main).toHaveClass('flex-col');
+      expect(main).toHaveClass('flex-1');
+    } finally {
+      afterEachCleanup();
+    }
+  });
+
+  it('editor-view container is overflow-y-auto (its own scroll region, independent of drawer)', async () => {
+    const script = await setupWithScript('INT. ROOM - DAY\n');
+    try {
+      renderAt(`/scripts/${script.id}`);
+      const view = await screen.findByTestId('editor-view');
+      expect(view).toHaveClass('overflow-y-auto');
+      expect(view).toHaveClass('min-h-0');
+    } finally {
+      afterEachCleanup();
+    }
+  });
+});
+
 describe('EditorPage — mode orchestration', () => {
   it('renders the editor view (not the preview) when no panel is active', async () => {
     const script = await setupWithScript('INT. ROOM - DAY\n');

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 
@@ -44,6 +44,19 @@ export interface UseScreenplayEditorOptions {
 
 export interface UseScreenplayEditorResult {
   editor: Editor | null;
+  /**
+   * Flips from false → true exactly once after the initial fountain is
+   * parsed and applied via setContent(). Consumers that need to run
+   * post-hydration work (e.g. pagination, scroll restore) should gate
+   * on this instead of just `editor !== null`, because the editor
+   * becomes non-null before the doc has content.
+   *
+   * Internally backed by both a ref (for the TipTap onUpdate closure,
+   * which is captured at editor-creation time and would otherwise see
+   * a stale `false`) and React state (so external effects re-run when
+   * hydration completes).
+   */
+  hydrated: boolean;
 }
 
 export function useScreenplayEditor({
@@ -52,6 +65,7 @@ export function useScreenplayEditor({
   onFountainChange,
 }: UseScreenplayEditorOptions): UseScreenplayEditorResult {
   const hydratedRef = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
 
   // Mirror props into refs so TipTap's captured onUpdate always sees the
   // latest values without forcing the editor to be torn down and rebuilt.
@@ -120,7 +134,8 @@ export function useScreenplayEditor({
 
     editor.commands.setContent(seededDoc, false);
     hydratedRef.current = true;
+    setHydrated(true);
   }, [editor, initialFountain]);
 
-  return { editor };
+  return { editor, hydrated };
 }

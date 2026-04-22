@@ -5,35 +5,51 @@ import { useScript } from '@/hooks/useScript';
 import { ScriptEditor } from '@/features/editor-shell/ScriptEditor';
 
 /**
- * Route-level editor shell. While the script is loading or missing, we
- * render a narrow container. Once the script is loaded, ScriptEditor
- * takes over the whole viewport — it owns its own drawer + container
- * layout so the drawer sits flush against the viewport edge rather
- * than inside a centered content container.
+ * Route-level editor shell.
+ *
+ * Layout contract (fixes the "drawer scrolls with editor" bug):
+ *   - `.editor-page`  — `h-screen flex flex-col`. Establishes a fixed
+ *     viewport frame so document scroll can't bleed into the drawer.
+ *   - `.editor-page-topbar` — `flex-shrink-0`. Always-visible back
+ *     button, sits above everything, never scrolls.
+ *   - `.editor-page-body`  — `flex-1 min-h-0 flex`. Hosts the drawer
+ *     and ScriptEditor as INDEPENDENT scroll regions. `min-h-0` is
+ *     the flex-child-shrinking unlock — without it, children with
+ *     overflow:auto get pushed out past the container instead of
+ *     clipping + scrolling.
+ *
+ * The loading and not-found states share the same frame so the top
+ * bar is present before and after script resolution.
  */
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
   const { script, isLoading } = useScript(id);
 
-  if (script) {
-    // key={script.id} forces a fresh editor instance on navigation so
-    // hydration + drawer state run cleanly for each script.
-    return <ScriptEditor key={script.id} script={script} />;
-  }
-
   return (
-    <div className="container py-8">
-      <div className="mb-6">
+    <div className="flex h-screen flex-col" data-testid="editor-page">
+      <header
+        className="flex-shrink-0 border-b bg-background px-4 py-3"
+        data-testid="editor-page-topbar"
+      >
         <Button asChild variant="ghost" size="sm">
           <Link to="/">
             <ArrowLeft className="h-4 w-4" />
             Back to scripts
           </Link>
         </Button>
-      </div>
+      </header>
 
-      {isLoading && <p className="text-muted-foreground">Loading…</p>}
-      {!isLoading && <p className="text-muted-foreground">Script not found.</p>}
+      <div className="flex min-h-0 flex-1" data-testid="editor-page-body">
+        {script ? (
+          /* key={script.id} forces a fresh editor instance on navigation
+             so hydration + drawer state run cleanly for each script. */
+          <ScriptEditor key={script.id} script={script} />
+        ) : (
+          <div className="flex-1 p-8 text-sm text-muted-foreground">
+            {isLoading ? 'Loading…' : 'Script not found.'}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

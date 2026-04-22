@@ -1,8 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { EditorContent } from '@tiptap/react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { useScreenplayEditor } from '@/editor';
 import { dispatchPageBreakPositions } from '@/editor/extensions/pageBreakDecoration';
@@ -40,15 +37,24 @@ const PAGINATION_DEBOUNCE_MS = 100;
  *   - Pagination wiring: a BrowserMeasurer singleton tied to this
  *     shell's lifetime, plus a 100 ms debounced paginate() that
  *     dispatches page-break positions into the editor's decoration
- *     plugin. The plugin never touches the document — breaks are
- *     visual-only so the Fountain source stays byte-stable.
+ *     plugin.
  *
- * Also acts as the "mode orchestrator": reads the drawer's active panel
- * and, if that panel declares a MainArea override, hides the editor
- * view and renders the override in its place. The editor instance is
- * NEVER destroyed on mode switch — undo history and hydration cost
- * are preserved by simply toggling a `hidden` class on the editor's
- * wrapper div.
+ * Layout contract (see EditorPage for the outer frame):
+ *   - Rendered as the two CHILDREN of EditorPage's body row
+ *     (`.editor-page-body`): the Drawer element first, the <main>
+ *     element second. Both are flex children.
+ *   - Drawer manages its own width transition + internal scroll.
+ *   - Main gets `min-h-0 flex-1 flex-col`. Its children manage their
+ *     own scroll: the editor view is `overflow-y-auto`, MainArea
+ *     overrides fill the remaining height and handle their own scroll
+ *     internally. Neither scrolls the other — that's the fix for
+ *     "drawer scrolls with editor content".
+ *
+ * Mode orchestrator: reads the drawer's active panel and, if that
+ * panel declares a MainArea override, hides the editor view and
+ * renders the override in its place. The editor instance is NEVER
+ * destroyed on mode switch — the editor-view div just toggles a
+ * `hidden` class.
  */
 export function ScriptEditor({ script }: Props) {
   const [initialFountain, setInitialFountain] = useState<string | null>(null);
@@ -60,9 +66,6 @@ export function ScriptEditor({ script }: Props) {
 
   const { settings: viewSettings, update: updateViewSettings } = useViewSettings();
 
-  // Resolve the starting Fountain once per script: if a newer draft row
-  // exists, surface the banner and let the user pick. Otherwise boot the
-  // editor straight from the script's canonical Fountain.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -82,7 +85,6 @@ export function ScriptEditor({ script }: Props) {
     };
   }, [script.id, script.fountain, script.updatedAt]);
 
-  // Extract the title page from whichever Fountain we settled on.
   useEffect(() => {
     if (initialFountain == null) return;
     const elements = parse(initialFountain);
@@ -95,7 +97,7 @@ export function ScriptEditor({ script }: Props) {
     initialFountain,
   });
 
-  const { editor } = useScreenplayEditor({
+  const { editor, hydrated } = useScreenplayEditor({
     initialFountain,
     titlePage,
     onFountainChange,
@@ -126,9 +128,6 @@ export function ScriptEditor({ script }: Props) {
   };
 
   // ── Pagination wiring ────────────────────────────────────────────────
-  // The BrowserMeasurer owns an offscreen measurement container; it's
-  // created once per ScriptEditor mount and disposed on unmount so we
-  // don't leak DOM nodes when the user navigates between scripts.
   const measurerRef = useRef<BrowserMeasurer | null>(null);
   useEffect(() => {
     measurerRef.current = new BrowserMeasurer();
@@ -149,12 +148,14 @@ export function ScriptEditor({ script }: Props) {
     showPageBreaksRef.current = showPageBreaks;
   }, [showPageBreaks]);
 
-  // Core pagination work. Debounced at 100 ms (shorter than the 300 ms
-  // autosave because pagination is cheap thanks to the measurement
-  // cache and writers want the visual break to track their typing).
+  /**
+   * Core pagination work. Pure from the autosave path's point of view:
+   * it dispatches a setMeta-only transaction into the editor view,
+   * which does NOT change the doc (no docChanged), so TipTap's
+   * `update` event never fires and useAutosave doesn't see a write.
+   */
   const runPagination = useCallback(() => {
     if (!editor) return;
-    // Feature-off: dispatch empty positions to clear any stale markers.
     if (!showPageBreaksRef.current) {
       dispatchPageBreakPositions(editor.view, []);
       return;
@@ -172,26 +173,35 @@ export function ScriptEditor({ script }: Props) {
 
   const paginateDebounced = useDebouncedCallback(runPagination, PAGINATION_DEBOUNCE_MS);
 
-  // Fire pagination whenever the editor's content changes.
+  // Subscribe to editor updates.
   useEffect(() => {
     if (!editor) return;
     const handler = () => paginateDebounced();
     editor.on('update', handler);
-    // Kick once so markers land on initial load without waiting for
-    // the first keystroke.
-    paginateDebounced();
     return () => {
       editor.off('update', handler);
     };
   }, [editor, paginateDebounced]);
 
-  // Re-run (synchronously via flush so the effect doesn't drift into
-  // the next tick) whenever the "show page breaks" toggle flips.
+  /**
+   * Kick pagination once hydration completes, and whenever the
+   * `showPageBreaks` preference changes. Previously this effect
+   * depended only on [editor, showPageBreaks], which caused the
+   * "page breaks disappear after reload" bug: when the page loaded
+   * with the toggle already on, paginate ran BEFORE hydration (while
+   * the doc was still empty), produced zero breaks, and nothing
+   * triggered a re-paginate after hydration because
+   * `setContent(doc, false)` suppresses the `update` event by design.
+   *
+   * Gating on `hydrated` fixes it — this effect fires exactly once
+   * when hydration flips from false → true, then again on every
+   * toggle flip.
+   */
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !hydrated) return;
     paginateDebounced();
     paginateDebounced.flush();
-  }, [showPageBreaks, editor, paginateDebounced]);
+  }, [editor, hydrated, showPageBreaks, paginateDebounced]);
 
   // ── Mode orchestration ───────────────────────────────────────────────
   const { state: drawerState } = useDrawerState();
@@ -210,30 +220,37 @@ export function ScriptEditor({ script }: Props) {
   );
 
   return (
-    <div className="grid min-h-screen grid-cols-[auto_1fr]">
+    <>
       <Drawer {...drawerProps} />
 
-      <main className="flex min-w-0 flex-col">
-        <div className="container flex-shrink-0 pb-4 pt-8">
-          <div className="mb-6">
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/">
-                <ArrowLeft className="h-4 w-4" />
-                Back to scripts
-              </Link>
-            </Button>
-          </div>
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">{script.title}</h1>
+      <main
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+        data-testid="editor-main"
+      >
+        {/* Script title + Save Indicator stay pinned above the scrolling body. */}
+        <div className="flex-shrink-0 border-b bg-background/60 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <h1 className="truncate text-lg font-semibold tracking-tight">
+              {script.title}
+            </h1>
             <SaveIndicator state={state} />
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div
-            data-testid="editor-view"
-            className={cn('container pb-8', MainArea && 'hidden')}
-          >
+        {/*
+          Editor view — always mounted so the TipTap instance keeps
+          its undo history and hydration across mode switches. The
+          `overflow-y-auto` here makes THIS the scroll region for
+          editor content; the drawer scrolls on its own.
+        */}
+        <div
+          data-testid="editor-view"
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-y-auto',
+            MainArea && 'hidden',
+          )}
+        >
+          <div className="container pb-8 pt-6">
             {pendingDraft && (
               <DraftRestoreBanner
                 draftUpdatedAt={pendingDraft.draftUpdatedAt}
@@ -249,36 +266,32 @@ export function ScriptEditor({ script }: Props) {
               are preserved in a 5-entry snapshot ring.
             </p>
           </div>
-
-          {MainArea && (
-            <Suspense
-              fallback={
-                <div className="p-8 text-sm text-muted-foreground">
-                  Loading panel view…
-                </div>
-              }
-            >
-              <div className="min-h-0 flex-1">
-                <MainArea titlePage={titlePage} />
-              </div>
-            </Suspense>
-          )}
         </div>
+
+        {MainArea && (
+          <Suspense
+            fallback={
+              <div className="p-8 text-sm text-muted-foreground">
+                Loading panel view…
+              </div>
+            }
+          >
+            {/*
+              The panel's MainArea owns its own overflow behavior
+              (TitlePagePreview, for example, scrolls a centered page
+              inside a muted workspace). flex-1 + min-h-0 give it the
+              rest of the main column's height.
+            */}
+            <div className="flex min-h-0 flex-1">
+              <MainArea titlePage={titlePage} />
+            </div>
+          </Suspense>
+        )}
       </main>
-    </div>
+    </>
   );
 }
 
-/**
- * Translate pagination output into ProseMirror doc positions suitable
- * for widget decorations.
- *
- * For each page after the first, we emit one break indicator BEFORE
- * the block that opens that page. Block index in the TipTap doc is
- * the count of non-title-page elements up to (but not including) the
- * first PageElement's originalIndex, because screenplayToDoc filters
- * title-page out when it builds the doc.
- */
 function computePageBreakDocPositions(
   editor: import('@tiptap/core').Editor,
   elements: ScreenplayElement[],
@@ -287,8 +300,6 @@ function computePageBreakDocPositions(
   if (pages.length <= 1) return [];
 
   const doc = editor.state.doc;
-  // Precompute cumulative top-level node starts so we don't rewalk
-  // from the beginning for each boundary.
   const blockStarts: number[] = [];
   let offset = 0;
   doc.forEach((child) => {
@@ -301,8 +312,6 @@ function computePageBreakDocPositions(
     const firstSlot = pages[p].elements[0];
     if (!firstSlot) continue;
     const blockIndex = originalIndexToBlockIndex(elements, firstSlot.originalIndex);
-    // Defensive: if the element array and the doc disagree (e.g. an
-    // unfinished transaction mid-render), skip rather than crash.
     if (blockIndex < 0 || blockIndex >= blockStarts.length) continue;
     positions.push(blockStarts[blockIndex]);
   }
