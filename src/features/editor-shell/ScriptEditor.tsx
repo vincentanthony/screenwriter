@@ -23,9 +23,17 @@ import { ExportMenu, type ExportPayload } from './ExportMenu';
 import { ImportWarningsBanner } from './ImportWarningsBanner';
 import { SaveIndicator } from './SaveIndicator';
 import { DraftRestoreBanner } from './DraftRestoreBanner';
+import { TitleInlineEdit } from './TitleInlineEdit';
 
 interface Props {
   script: Script;
+  /**
+   * Rename callback supplied by the parent (EditorPage) — fires only
+   * when the user actually changes the title (after trim). The parent
+   * routes this through repo.update so the persisted title updates
+   * and the next useScript read reflects the new value.
+   */
+  onRename: (newTitle: string) => Promise<void> | void;
 }
 
 const PAGINATION_DEBOUNCE_MS = 100;
@@ -59,7 +67,7 @@ const PAGINATION_DEBOUNCE_MS = 100;
  * destroyed on mode switch — the editor-view div just toggles a
  * `hidden` class.
  */
-export function ScriptEditor({ script }: Props) {
+export function ScriptEditor({ script, onRename }: Props) {
   const [initialFountain, setInitialFountain] = useState<string | null>(null);
   const [pendingDraft, setPendingDraft] = useState<{
     fountain: string;
@@ -283,12 +291,17 @@ export function ScriptEditor({ script }: Props) {
         data-testid="editor-main"
       >
         {/* Script title + Save Indicator + Export menu stay pinned above
-            the scrolling body. */}
+            the scrolling body. The title is an inline-editable control;
+            clicking it swaps in a text input. Commit/cancel stays
+            contained to the chrome — the TipTap editor never sees
+            the focus or the rename transaction. */}
         <div className="flex-shrink-0 border-b bg-background/60 px-6 py-3">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="truncate text-lg font-semibold tracking-tight">
-              {script.title}
-            </h1>
+            <TitleInlineEdit
+              title={script.title}
+              onRename={onRename}
+              className="min-w-0 flex-1"
+            />
             <div className="flex items-center gap-3">
               <SaveIndicator state={state} />
               <ExportMenu getExportPayload={getExportPayload} />

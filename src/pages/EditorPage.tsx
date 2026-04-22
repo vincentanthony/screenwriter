@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,19 @@ import { ScriptEditor } from '@/features/editor-shell/ScriptEditor';
  */
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
-  const { script, isLoading } = useScript(id);
+  const { script, isLoading, update } = useScript(id);
+
+  // Rename callback the inline-edit widget calls on commit. Trimming +
+  // no-op-if-unchanged is already handled inside TitleInlineEdit; we
+  // just route the write through useScript.update so the hook's local
+  // `script` state refreshes (and the header re-renders with the new
+  // title) without a round-trip through the list.
+  const handleRename = useCallback(
+    async (newTitle: string) => {
+      await update({ title: newTitle });
+    },
+    [update],
+  );
 
   return (
     <div className="flex h-screen flex-col" data-testid="editor-page">
@@ -43,7 +56,7 @@ export function EditorPage() {
         {script ? (
           /* key={script.id} forces a fresh editor instance on navigation
              so hydration + drawer state run cleanly for each script. */
-          <ScriptEditor key={script.id} script={script} />
+          <ScriptEditor key={script.id} script={script} onRename={handleRename} />
         ) : (
           <div className="flex-1 p-8 text-sm text-muted-foreground">
             {isLoading ? 'Loading…' : 'Script not found.'}

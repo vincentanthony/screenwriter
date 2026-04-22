@@ -30,7 +30,7 @@ import { useScriptsList } from '@/hooks/useScriptsList';
 type ImportError = { message: string } | null;
 
 export function ScriptsPage() {
-  const { scripts, isLoading, create, remove, refresh } = useScriptsList();
+  const { scripts, isLoading, create, remove, rename, refresh } = useScriptsList();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [importError, setImportError] = useState<ImportError>(null);
@@ -154,7 +154,7 @@ export function ScriptsPage() {
       {isLoading ? (
         <p className="text-muted-foreground">Loading…</p>
       ) : (
-        <ScriptsList scripts={scripts} onDelete={remove} />
+        <ScriptsList scripts={scripts} onDelete={remove} onRename={rename} />
       )}
 
       {/* Import-failure dialog. Non-blocking — user can dismiss and

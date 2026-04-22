@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,23 +11,52 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import type { ScriptMeta } from '@/types/script';
 
 interface Props {
   scripts: ScriptMeta[];
   onDelete: (id: string) => void;
+  onRename: (id: string, newTitle: string) => Promise<void> | void;
 }
 
-export function ScriptsList({ scripts, onDelete }: Props) {
-  // The script queued for deletion. Null = no dialog. Holding the whole
-  // ScriptMeta (not just id) so the dialog body can interpolate the title
-  // even while Radix plays out its close animation.
+export function ScriptsList({ scripts, onDelete, onRename }: Props) {
+  // Dialog-pending state holds the whole ScriptMeta (not just id) so
+  // the dialog body can interpolate the title even while Radix plays
+  // out its close animation.
   const [pendingDelete, setPendingDelete] = useState<ScriptMeta | null>(null);
+  const [pendingRename, setPendingRename] = useState<ScriptMeta | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // When the rename dialog opens, focus the input and select all the
+  // text so the user can just start typing to replace.
+  useEffect(() => {
+    if (pendingRename && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [pendingRename]);
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
     onDelete(pendingDelete.id);
     setPendingDelete(null);
+  };
+
+  const startRename = (script: ScriptMeta) => {
+    setPendingRename(script);
+    setRenameValue(script.title);
+  };
+
+  const commitRename = async () => {
+    if (!pendingRename) return;
+    const trimmed = renameValue.trim();
+    // No-op if unchanged after trim — close the dialog without a write.
+    if (trimmed !== pendingRename.title.trim()) {
+      await onRename(pendingRename.id, trimmed);
+    }
+    setPendingRename(null);
   };
 
   if (scripts.length === 0) {
@@ -52,7 +81,15 @@ export function ScriptsList({ scripts, onDelete }: Props) {
                     Updated {new Date(script.updatedAt).toLocaleString()}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex justify-end">
+                <CardContent className="flex justify-end gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => startRename(script)}
+                    aria-label={`Rename ${displayTitle}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -98,6 +135,40 @@ export function ScriptsList({ scripts, onDelete }: Props) {
             <Button variant="destructive" onClick={confirmDelete}>
               Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingRename !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRename(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename script</DialogTitle>
+            <DialogDescription>
+              Change the display name for &ldquo;{pendingRename?.title || 'Untitled'}&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            ref={renameInputRef}
+            aria-label="Script title"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingRename(null)}>
+              Cancel
+            </Button>
+            <Button onClick={commitRename}>Rename</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

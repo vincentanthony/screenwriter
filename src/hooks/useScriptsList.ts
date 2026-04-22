@@ -42,5 +42,17 @@ export function useScriptsList() {
     [refresh],
   );
 
-  return { scripts, isLoading, create, remove, refresh };
+  const rename = useCallback(
+    async (id: string, newTitle: string) => {
+      // Trim here so the UI layer never has to care. An empty string
+      // is allowed — the list row renders "Untitled" for empty titles,
+      // matching how we already handle titleless scripts.
+      const trimmed = newTitle.trim();
+      await getRepository().update(id, { title: trimmed });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  return { scripts, isLoading, create, remove, rename, refresh };
 }
