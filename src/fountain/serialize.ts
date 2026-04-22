@@ -35,7 +35,13 @@ export function serialize(elements: ScreenplayElement[]): string {
 function renderElement(el: ScreenplayElement): string[] {
   switch (el.type) {
     case 'title-page':
-      return el.fields.map((f) => `${f.key}: ${f.value}`);
+      // Defensive string coercion: TitlePageField.value is typed `string`,
+      // but an upstream FDX import bug can produce object values that the
+      // default template-literal stringification turns into the literal
+      // `[object Object]`. Once that lands in the Fountain source of truth,
+      // every downstream read (editor, export, card title) sees the garbage.
+      // Coercing to empty here contains the blast radius.
+      return el.fields.map((f) => `${f.key}: ${typeof f.value === 'string' ? f.value : ''}`);
 
     case 'scene':
       // Natural scene headings must be uppercase to re-parse. Forced scenes

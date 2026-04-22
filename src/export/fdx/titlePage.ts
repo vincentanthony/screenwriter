@@ -56,13 +56,35 @@ const KNOWN_FIELDS: readonly FieldRule[] = [
 
 const KNOWN_KEYS = new Set(KNOWN_FIELDS.map((f) => f.key));
 
+/**
+ * Defensive coercion for title-page field values.
+ *
+ * TitlePageField.value is typed `string`, but we've seen field values
+ * arrive as objects (via corrupted fountain strings containing the
+ * literal `[object Object]`, typically sourced from an FDX import bug
+ * upstream). Rather than emit garbage into FD-facing XML, we:
+ *
+ *   - return empty for anything that isn't actually a string
+ *   - return empty when the value equals the literal `[object Object]`
+ *     sentinel — not a title any human types, so treating it as noise
+ *     is safe and keeps the exported title page visually clean
+ *
+ * Upstream parser fix for `_raw_N: [object Object]` on import is
+ * tracked separately; this is the downstream blast-radius shield.
+ */
+function safeString(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  if (value === '[object Object]') return '';
+  return value;
+}
+
 export function emitTitlePage(titlePage: TitlePageField[] | null): string {
   // No title page → no <TitlePage> element. FD treats the absence as
   // "no title page" and starts the script straight on page 1.
   if (!titlePage || titlePage.length === 0) return '';
 
   const valueOf = (key: string) =>
-    titlePage.find((f) => f.key === key)?.value.trim() ?? '';
+    safeString(titlePage.find((f) => f.key === key)?.value).trim();
 
   const paragraphs: string[] = [];
 
@@ -76,7 +98,7 @@ export function emitTitlePage(titlePage: TitlePageField[] | null): string {
   // Preserve unknown keys at the end (left-aligned).
   for (const field of titlePage) {
     if (KNOWN_KEYS.has(field.key)) continue;
-    const raw = field.value.trim();
+    const raw = safeString(field.value).trim();
     if (raw.length === 0) continue;
     paragraphs.push(emitFieldBlock(`${field.key}: ${raw}`, 'Left'));
   }

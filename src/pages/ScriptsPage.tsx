@@ -71,8 +71,15 @@ export function ScriptsPage() {
 
       // Derive a title: prefer the title page's Title field, fall back
       // to the filename minus .fdx, fall back to "Imported Script".
+      // Defensive coercion: a buggy FDX import can yield a non-string
+      // or the literal sentinel "[object Object]" for the Title field.
+      // Either case should fall through to the filename, not pollute
+      // the scripts list with a garbage card title.
+      const rawTitleFromPage = parsed.titlePage?.find((f) => f.key === 'Title')?.value;
       const titleFromPage =
-        parsed.titlePage?.find((f) => f.key === 'Title')?.value.trim() ?? '';
+        typeof rawTitleFromPage === 'string' && rawTitleFromPage !== '[object Object]'
+          ? rawTitleFromPage.trim()
+          : '';
       const derivedTitle =
         titleFromPage.length > 0
           ? titleFromPage

@@ -283,6 +283,67 @@ describe('exportToFDX — edge cases', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// Title page defensive coercion (regression: [object Object] literal)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('exportToFDX — title page defensive coercion', () => {
+  it('emits a fully-populated title page as real string text (no "[object Object]" literal)', () => {
+    const titlePage = [
+      { key: 'Title', value: 'Starship' },
+      { key: 'Credit', value: 'Written by' },
+      { key: 'Author', value: 'Jane Doe' },
+      { key: 'Source', value: 'Based on a true story' },
+      { key: 'Draft date', value: '2026-04-22' },
+      { key: 'Contact', value: 'jane@example.com' },
+      { key: 'Copyright', value: '© 2026 Jane Doe' },
+    ];
+    const xml = exportToFDX([], titlePage, []);
+    // The literal sentinel must never appear in FD-facing output.
+    expect(xml).not.toContain('[object Object]');
+    const doc = parseXml(xml);
+    expect(isWellFormed(doc)).toBe(true);
+    const text = Array.from(doc.querySelectorAll('TitlePage > Content > Paragraph'))
+      .map((p) => p.textContent ?? '')
+      .join('|');
+    expect(text).toContain('STARSHIP'); // Title uppercased
+    expect(text).toContain('Jane Doe');
+    expect(text).toContain('2026-04-22');
+  });
+
+  it('filters the "[object Object]" sentinel if a corrupted fountain string bled through', () => {
+    // Simulates the downstream symptom of the upstream FDX import
+    // parser bug (tracked separately): a TitlePageField value that
+    // arrived as the literal string "[object Object]". Rather than
+    // emit garbage to FD, we drop it.
+    const titlePage = [
+      { key: 'Title', value: 'Real Title' },
+      { key: 'Author', value: '[object Object]' },
+    ];
+    const xml = exportToFDX([], titlePage, []);
+    expect(xml).not.toContain('[object Object]');
+    const doc = parseXml(xml);
+    const text = Array.from(doc.querySelectorAll('TitlePage > Content > Paragraph'))
+      .map((p) => p.textContent ?? '')
+      .join('|');
+    expect(text).toContain('REAL TITLE');
+  });
+
+  it('drops non-string title-page values instead of letting them stringify to "[object Object]"', () => {
+    // TitlePageField.value is typed `string`, but defense-in-depth —
+    // if something upstream smuggled a non-string through, the export
+    // must not print `[object Object]` into FD-facing XML.
+    const titlePage = [
+      { key: 'Title', value: 'Real Title' },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { key: 'Author', value: { nested: 'oops' } as any },
+    ];
+    const xml = exportToFDX([], titlePage, []);
+    expect(xml).not.toContain('[object Object]');
+    expect(xml).not.toContain('oops');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 // Determinism
 // ──────────────────────────────────────────────────────────────────────────
 
