@@ -61,17 +61,23 @@ describe('canPromoteToTransition', () => {
   const inAction = { nodeName: NODE_NAMES.action, forced: false, contentSize: 0 };
 
   it.each(['CUT TO:', 'SMASH CUT TO:', 'FADE TO:', 'DISSOLVE TO:'])(
-    'promotes when text is %p',
+    'promotes when text is uppercase %p',
     (text) => {
       expect(canPromoteToTransition(inAction, text)).toBe(true);
     },
   );
 
-  it('does NOT promote lowercase "cut to:" (uppercase-only match)', () => {
-    expect(canPromoteToTransition(inAction, 'cut to:')).toBe(false);
-  });
+  // Case-insensitive: writers in flow type lowercase; Final Draft promotes
+  // and auto-uppercases. The TransitionUppercase plugin handles the casing
+  // side of that contract.
+  it.each(['cut to:', 'smash cut to:', 'fade to:', 'dissolve to:', 'Cut To:', 'cUt TO:'])(
+    'promotes when text is mixed/lower case %p',
+    (text) => {
+      expect(canPromoteToTransition(inAction, text)).toBe(true);
+    },
+  );
 
-  it('does NOT promote mid-sentence "...cut to:" without starting at a letter', () => {
+  it('does NOT promote mid-sentence "...CUT TO:" without starting at a letter', () => {
     expect(canPromoteToTransition(inAction, '...CUT TO:')).toBe(false);
   });
 
@@ -245,6 +251,20 @@ describe('transitionInputRule handler', () => {
     const state = stateWithOneBlock(schema, NODE_NAMES.dialogue, 'CUT TO');
     const match = TRANSITION_TRIGGER.exec('CUT TO:') as RegExpMatchArray;
     expect(handleTransitionPromotion(state, match, 1, 7)).toBeNull();
+  });
+
+  it('promotes a lowercase "cut to" Action (case-insensitive rule)', () => {
+    const schema = buildTestSchema();
+    const state = stateWithOneBlock(schema, NODE_NAMES.action, 'cut to');
+    const match = TRANSITION_TRIGGER.exec('cut to:') as RegExpMatchArray;
+    const tr = handleTransitionPromotion(state, match, 1, 7);
+    expect(tr).not.toBeNull();
+
+    const newDoc = state.apply(tr!).doc;
+    expect(newDoc.firstChild?.type.name).toBe(NODE_NAMES.transition);
+    // Promotion preserves case; the TransitionUppercase plugin uppercases
+    // as a separate appendTransaction pass.
+    expect(newDoc.firstChild?.textContent).toBe('cut to:');
   });
 });
 

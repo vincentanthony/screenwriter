@@ -11,6 +11,11 @@ export {
   applySceneHeadingUppercase,
 } from './sceneHeadingUppercase';
 export {
+  TransitionUppercase,
+  TRANSITION_UPPERCASE_PLUGIN_KEY,
+  applyTransitionUppercase,
+} from './transitionUppercase';
+export {
   LivePromotions,
   sceneHeadingInputRule,
   transitionInputRule,
@@ -27,6 +32,7 @@ export {
 import { ElementKeymap } from './elementKeymap';
 import { CharacterUppercase } from './characterUppercase';
 import { SceneHeadingUppercase } from './sceneHeadingUppercase';
+import { TransitionUppercase } from './transitionUppercase';
 import { LivePromotions } from './livePromotions';
 
 /**
@@ -37,5 +43,6 @@ export const SCREENPLAY_EXTENSIONS = [
   ElementKeymap,
   CharacterUppercase,
   SceneHeadingUppercase,
+  TransitionUppercase,
   LivePromotions,
 ] as const;

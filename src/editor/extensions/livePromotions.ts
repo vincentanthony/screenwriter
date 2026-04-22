@@ -24,8 +24,15 @@ import { NODE_NAMES } from '@/editor/serialization/nodeNames';
 export const SCENE_HEADING_TRIGGER =
   /^(INT|EXT|EST|I\/E|INT\.\/EXT|EXT\.\/INT)\.\s$/i;
 
-/** All-caps line ending in `TO:` (e.g. `CUT TO:`, `SMASH CUT TO:`). */
-export const TRANSITION_TRIGGER = /^[A-Z][A-Z\s]*TO:$/;
+/**
+ * A line ending in `TO:` (e.g. `CUT TO:`, `cut to:`, `Smash Cut To:`).
+ *
+ * Case-insensitive by design: writers typing in flow often type lowercase
+ * and expect Final Draft-style auto-promotion AND auto-uppercase. The
+ * TransitionUppercase plugin handles the uppercasing side of that contract
+ * once this rule has promoted the block.
+ */
+export const TRANSITION_TRIGGER = /^[A-Z][A-Z\s]*TO:$/i;
 
 /** Single `(` — only promotes when the block is otherwise empty. */
 export const PARENTHETICAL_TRIGGER = /^\($/;
