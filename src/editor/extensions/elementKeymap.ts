@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
+import { canSplit } from '@tiptap/pm/transform';
 import { NODE_NAMES, type NodeName } from '@/editor/serialization/nodeNames';
 
 /**
@@ -136,20 +137,67 @@ export function resolveEnter(ctx: KeyMapContext): KeyMapAction {
  * Run a resolved KeyMapAction against a live editor. Returns true if the
  * command was handled (TipTap will stop propagation), false to let the
  * default handler run.
+ *
+ * Exported so the integration tests can drive the exact same path the
+ * keyboard bindings drive, without depending on synthetic KeyboardEvents.
  */
-function execute(editor: Editor, action: KeyMapAction): boolean {
+export function executeKeyMapAction(editor: Editor, action: KeyMapAction): boolean {
   switch (action.kind) {
     case 'passthrough':
       return false;
     case 'convert':
       return editor.chain().focus().setNode(action.to).run();
     case 'split':
-      return editor.chain().focus().splitBlock().setNode(action.to).run();
+      return splitBlockToType(editor, action.to);
   }
 }
 
+/**
+ * Split the current block and make the new (right-hand) block have
+ * `targetTypeName`, all in a single ProseMirror transform step.
+ *
+ * Why not `chain().splitBlock().setNode(targetType).run()`? Because
+ * pm-commands.splitBlock uses `defaultBlockAt` to pick the split's
+ * right-hand type, which for our schema happens to be Scene Heading.
+ * When the user is in a Transition and presses Enter, splitBlock already
+ * produces a Scene Heading — then TipTap's `setNode` runs its
+ * "can I set this type?" probe via pm-commands.setBlockType. That probe
+ * treats "already this type" as NOT applicable (the `hasMarkup` check
+ * short-circuits before `applicable = true`), so setNode falls through
+ * to its clearNodes fallback, which then trips on stale positions with
+ * "Position N out of range".
+ *
+ * Issuing tr.split(pos, 1, [{type: targetType}]) directly:
+ *   - one pm step, one undo entry
+ *   - the new block's type is whatever we ask for, independent of schema
+ *     registration order or defaultBlockAt
+ *   - no setNode / clearNodes / probe dance to go wrong
+ */
+function splitBlockToType(editor: Editor, targetTypeName: string): boolean {
+  const { state } = editor;
+  const targetType = state.schema.nodes[targetTypeName];
+  if (!targetType) return false;
+
+  const tr = state.tr;
+  if (!state.selection.empty) tr.deleteSelection();
+
+  const splitPos = tr.mapping.map(state.selection.$from.pos);
+  const typesAfter = [{ type: targetType }];
+
+  if (!canSplit(tr.doc, splitPos, 1, typesAfter)) {
+    // Schema rejected the requested type at this position — bail rather
+    // than silently mangling the doc.
+    return false;
+  }
+
+  tr.split(splitPos, 1, typesAfter);
+  tr.scrollIntoView();
+  editor.view.dispatch(tr);
+  return true;
+}
+
 /** Pull the KeyMapContext from the editor's current selection. */
-function contextFromEditor(editor: Editor): KeyMapContext {
+export function contextFromEditor(editor: Editor): KeyMapContext {
   const { $from } = editor.state.selection;
   const parent = $from.parent;
   return { current: parent.type.name, isEmpty: parent.content.size === 0 };
@@ -160,11 +208,12 @@ export const ElementKeymap = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      Tab: () => execute(this.editor as Editor, resolveTab(contextFromEditor(this.editor as Editor))),
+      Tab: () =>
+        executeKeyMapAction(this.editor as Editor, resolveTab(contextFromEditor(this.editor as Editor))),
       'Shift-Tab': () =>
-        execute(this.editor as Editor, resolveShiftTab(contextFromEditor(this.editor as Editor))),
+        executeKeyMapAction(this.editor as Editor, resolveShiftTab(contextFromEditor(this.editor as Editor))),
       Enter: () =>
-        execute(this.editor as Editor, resolveEnter(contextFromEditor(this.editor as Editor))),
+        executeKeyMapAction(this.editor as Editor, resolveEnter(contextFromEditor(this.editor as Editor))),
     };
   },
 });
