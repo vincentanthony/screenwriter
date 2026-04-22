@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import { Ruler, ScrollText, type LucideIcon } from 'lucide-react';
+import { Ruler, ScrollText, Sparkles, type LucideIcon } from 'lucide-react';
 import type { TitlePageField } from '@/fountain/types';
 import type { ViewSettings } from '@/hooks/useViewSettings';
 
@@ -72,6 +72,16 @@ export const DRAWER_PANELS: readonly DrawerPanel[] = [
     ),
     // No MainArea — the settings panel leaves the editor visible so the
     // writer can see their toggles take effect immediately.
+  },
+  {
+    id: 'aiSettings',
+    label: 'AI settings',
+    icon: Sparkles,
+    Component: lazy(() =>
+      import('./panels/AISettingsPanel').then((m) => ({ default: m.AISettingsPanel })),
+    ),
+    // No MainArea — AI Settings is a pure config surface; editing the
+    // script stays unaffected and visible behind the drawer.
   },
 ] as const;
 

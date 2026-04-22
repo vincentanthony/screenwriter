@@ -5,7 +5,8 @@ import type {
   Snapshot,
   RecordedPageBreak,
 } from '@/types/script';
-import { DexieScriptRepository } from './dexie';
+import type { UsageRecord } from '@/types/usage';
+import { DexieScriptRepository, DexieUsageRepository } from './dexie';
 
 export interface ScriptRepository {
   list(): Promise<ScriptMeta[]>;
@@ -29,13 +30,52 @@ export interface ScriptRepository {
   listSnapshots(scriptId: string): Promise<Snapshot[]>;
 }
 
-let instance: ScriptRepository | null = null;
+/**
+ * AI usage-log repository. Lives behind its own interface so the AI
+ * layer can be unit-tested against an in-memory impl without pulling
+ * in Dexie, and so a future backend-routed usage log is a one-file
+ * swap. Reads return newest-first.
+ */
+export interface UsageRepository {
+  /** Persist a new record. Returns the stored row with its generated id. */
+  create(record: Omit<UsageRecord, 'id'>): Promise<UsageRecord>;
+
+  /** Most recent N records, newest first. */
+  listRecent(limit: number): Promise<UsageRecord[]>;
+
+  /** Records whose timestamp falls in [from, to). Newest first. */
+  listInRange(from: number, to: number): Promise<UsageRecord[]>;
+
+  /**
+   * Aggregate totals for records with timestamp ≥ `timestamp`.
+   * Single pass; used by the ambient cost indicator and the Usage
+   * page's Today / 7d / 30d cards.
+   */
+  totalSince(
+    timestamp: number,
+  ): Promise<{ costCents: number; callCount: number }>;
+
+  /** Deletes all records older than `timestamp`. Returns count deleted. */
+  deleteOlderThan(timestamp: number): Promise<number>;
+}
+
+let scriptRepoInstance: ScriptRepository | null = null;
+let usageRepoInstance: UsageRepository | null = null;
 
 export function getRepository(): ScriptRepository {
-  if (!instance) instance = new DexieScriptRepository();
-  return instance;
+  if (!scriptRepoInstance) scriptRepoInstance = new DexieScriptRepository();
+  return scriptRepoInstance;
 }
 
 export function setRepositoryForTesting(repo: ScriptRepository | null): void {
-  instance = repo;
+  scriptRepoInstance = repo;
+}
+
+export function getUsageRepository(): UsageRepository {
+  if (!usageRepoInstance) usageRepoInstance = new DexieUsageRepository();
+  return usageRepoInstance;
+}
+
+export function setUsageRepositoryForTesting(repo: UsageRepository | null): void {
+  usageRepoInstance = repo;
 }

@@ -1,19 +1,16 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ScriptsPage } from '@/pages/ScriptsPage';
 import { EditorPage } from '@/pages/EditorPage';
-import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
+import { UsagePage } from '@/pages/UsagePage';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<ScriptsPage />} />
       <Route path="/scripts/:id" element={<EditorPage />} />
-      {/*
-        OAuth redirect landing for the OpenAI Codex auth flow.
-        See src/ai/openaiCodex.ts — the redirect_uri passed to OpenAI
-        must match this path byte-for-byte.
-      */}
-      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      {/* AI cost / call log. Accessible from the ambient indicator
+          in the editor top bar and from ScriptsPage. */}
+      <Route path="/usage" element={<UsagePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

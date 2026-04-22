@@ -40,9 +40,22 @@ export interface AIProvider {
    *
    * Non-streaming in v1 — returns the full response once the model
    * is done. Streaming can be added as a separate method later.
+   *
+   * `feature` is a caller-supplied label (e.g. "hello-world",
+   * "scene-feedback") that the provider records into the usage log
+   * alongside the response. Required so every AI call is auditable
+   * by origin. If a provider implementation receives an empty /
+   * missing feature string it should substitute "unknown" and log
+   * a warning — the app shouldn't break on an un-labeled call, but
+   * it shouldn't hide it either.
+   *
+   * `scriptId` is optional, intended for future per-script cost
+   * breakdowns; the AI layer simply stores it when present.
    */
   generateResponse(params: {
     systemPrompt?: string;
     messages: Message[];
+    feature: string;
+    scriptId?: string;
   }): Promise<AIResponse>;
 }

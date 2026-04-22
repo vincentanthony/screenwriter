@@ -19,7 +19,7 @@ import type { Script } from '@/types/script';
 import { Drawer } from '@/features/drawer/Drawer';
 import { findDrawerPanel } from '@/features/drawer/panels';
 import { useDrawerState } from '@/features/drawer/useDrawerState';
-import { AISettingsButton } from './AISettingsButton';
+import { AICostIndicator } from './AICostIndicator';
 import { ExportMenu, type ExportPayload } from './ExportMenu';
 import { ImportWarningsBanner } from './ImportWarningsBanner';
 import { SaveIndicator } from './SaveIndicator';
@@ -306,7 +306,7 @@ export function ScriptEditor({ script, onRename }: Props) {
             <div className="flex items-center gap-3">
               <SaveIndicator state={state} />
               <ExportMenu getExportPayload={getExportPayload} />
-              <AISettingsButton />
+              <AICostIndicator />
             </div>
           </div>
         </div>

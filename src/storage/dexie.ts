@@ -5,14 +5,28 @@ import type {
   Snapshot,
   RecordedPageBreak,
 } from '@/types/script';
-import type { ScriptRepository } from './repository';
+import type { UsageRecord } from '@/types/usage';
+import type { ScriptRepository, UsageRepository } from './repository';
 import { ScreenwriterDB, SNAPSHOT_RING_SIZE } from './schema';
 import { newId } from '@/lib/id';
+
+/**
+ * Both repositories share a single Dexie database instance so
+ * migrations stay consistent and transactions can span tables later
+ * if needed. Kept as module-level state rather than a full singleton
+ * class so unit tests can construct their own ScreenwriterDB and
+ * inject it into either repo.
+ */
+let sharedDb: ScreenwriterDB | null = null;
+function defaultDb(): ScreenwriterDB {
+  if (!sharedDb) sharedDb = new ScreenwriterDB();
+  return sharedDb;
+}
 
 export class DexieScriptRepository implements ScriptRepository {
   private db: ScreenwriterDB;
 
-  constructor(db: ScreenwriterDB = new ScreenwriterDB()) {
+  constructor(db: ScreenwriterDB = defaultDb()) {
     this.db = db;
   }
 
@@ -101,5 +115,63 @@ export class DexieScriptRepository implements ScriptRepository {
   async listSnapshots(scriptId: string): Promise<Snapshot[]> {
     const rows = await this.db.snapshots.where('scriptId').equals(scriptId).sortBy('createdAt');
     return rows.reverse();
+  }
+}
+
+export class DexieUsageRepository implements UsageRepository {
+  private db: ScreenwriterDB;
+
+  constructor(db: ScreenwriterDB = defaultDb()) {
+    this.db = db;
+  }
+
+  async create(record: Omit<UsageRecord, 'id'>): Promise<UsageRecord> {
+    const full: UsageRecord = { id: newId(), ...record };
+    await this.db.usageRecords.add(full);
+    return full;
+  }
+
+  async listRecent(limit: number): Promise<UsageRecord[]> {
+    // Dexie's reverse+limit on an indexed field gives a newest-first
+    // read without loading the whole table. Indexed on `timestamp`.
+    return this.db.usageRecords
+      .orderBy('timestamp')
+      .reverse()
+      .limit(limit)
+      .toArray();
+  }
+
+  async listInRange(from: number, to: number): Promise<UsageRecord[]> {
+    // [from, to) — half-open to match how callers specify windows
+    // (e.g. "today" = [startOfDay, startOfTomorrow)).
+    const rows = await this.db.usageRecords
+      .where('timestamp')
+      .between(from, to, true, false)
+      .toArray();
+    // between() doesn't preserve order; sort newest-first explicitly.
+    rows.sort((a, b) => b.timestamp - a.timestamp);
+    return rows;
+  }
+
+  async totalSince(
+    timestamp: number,
+  ): Promise<{ costCents: number; callCount: number }> {
+    let costCents = 0;
+    let callCount = 0;
+    await this.db.usageRecords
+      .where('timestamp')
+      .aboveOrEqual(timestamp)
+      .each((rec) => {
+        costCents += rec.costCents;
+        callCount += 1;
+      });
+    return { costCents, callCount };
+  }
+
+  async deleteOlderThan(timestamp: number): Promise<number> {
+    return this.db.usageRecords
+      .where('timestamp')
+      .below(timestamp)
+      .delete();
   }
 }

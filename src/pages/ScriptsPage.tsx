@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileUp, Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { BarChart3, FileUp, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -111,6 +111,12 @@ export function ScriptsPage() {
           <p className="text-muted-foreground">Your local scripts, stored in this browser.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/usage" aria-label="AI usage">
+              <BarChart3 className="h-4 w-4" />
+              Usage
+            </Link>
+          </Button>
           <Button variant="outline" onClick={handleImportClick}>
             <FileUp className="h-4 w-4" />
             Import…
