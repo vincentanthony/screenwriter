@@ -28,12 +28,30 @@ export {
   PARENTHETICAL_TRIGGER,
   type PromotionContext,
 } from './livePromotions';
+export {
+  CharacterSuggest,
+  CHARACTER_SUGGEST_PLUGIN_KEY,
+  isCharacterSuggestMatch,
+} from './characterSuggest';
+export {
+  ScenePrefixSuggest,
+  SCENE_PREFIX_PLUGIN_KEY,
+  isScenePrefixMatch,
+} from './scenePrefixSuggest';
+export {
+  SceneLocationSuggest,
+  SCENE_LOCATION_PLUGIN_KEY,
+  isSceneLocationMatch,
+} from './sceneLocationSuggest';
 
 import { ElementKeymap } from './elementKeymap';
 import { CharacterUppercase } from './characterUppercase';
 import { SceneHeadingUppercase } from './sceneHeadingUppercase';
 import { TransitionUppercase } from './transitionUppercase';
 import { LivePromotions } from './livePromotions';
+import { CharacterSuggest } from './characterSuggest';
+import { ScenePrefixSuggest } from './scenePrefixSuggest';
+import { SceneLocationSuggest } from './sceneLocationSuggest';
 
 /**
  * All screenplay-behavior extensions in one array. Pair with
@@ -45,4 +63,7 @@ export const SCREENPLAY_EXTENSIONS = [
   SceneHeadingUppercase,
   TransitionUppercase,
   LivePromotions,
+  CharacterSuggest,
+  ScenePrefixSuggest,
+  SceneLocationSuggest,
 ] as const;

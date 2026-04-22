@@ -113,4 +113,11 @@
   .sw-page-break {
     @apply my-8 border-t-2 border-dashed border-border;
   }
+
+  /* The @tiptap/suggestion decoration wraps the matched range in a
+     span for clientRect positioning. We don't want it to reflow text
+     or change typography — keep it invisible. */
+  .sw-autocomplete-decoration {
+    background: transparent;
+  }
 }
