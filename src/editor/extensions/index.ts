@@ -43,6 +43,11 @@ export {
   SCENE_LOCATION_PLUGIN_KEY,
   isSceneLocationMatch,
 } from './sceneLocationSuggest';
+export {
+  PageBreakDecoration,
+  PAGE_BREAK_PLUGIN_KEY,
+  dispatchPageBreakPositions,
+} from './pageBreakDecoration';
 
 import { ElementKeymap } from './elementKeymap';
 import { CharacterUppercase } from './characterUppercase';
@@ -52,6 +57,7 @@ import { LivePromotions } from './livePromotions';
 import { CharacterSuggest } from './characterSuggest';
 import { ScenePrefixSuggest } from './scenePrefixSuggest';
 import { SceneLocationSuggest } from './sceneLocationSuggest';
+import { PageBreakDecoration } from './pageBreakDecoration';
 
 /**
  * All screenplay-behavior extensions in one array. Pair with
@@ -66,4 +72,5 @@ export const SCREENPLAY_EXTENSIONS = [
   CharacterSuggest,
   ScenePrefixSuggest,
   SceneLocationSuggest,
+  PageBreakDecoration,
 ] as const;

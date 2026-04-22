@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TitlePageField } from '@/fountain/types';
+import { DEFAULT_VIEW_SETTINGS } from '@/hooks/useViewSettings';
 import { TitlePagePanel } from './TitlePagePanel';
 
 /**
@@ -14,7 +15,16 @@ import { TitlePagePanel } from './TitlePagePanel';
 function Harness({ initial }: { initial: TitlePageField[] }) {
   const [fields, setFields] = useState<TitlePageField[]>(initial);
   latestFields = fields;
-  return <TitlePagePanel titlePage={fields} onTitlePageUpdate={setFields} />;
+  // TitlePagePanel ignores viewSettings but the shared DrawerPanelProps
+  // contract requires them — stub safely.
+  return (
+    <TitlePagePanel
+      titlePage={fields}
+      onTitlePageUpdate={setFields}
+      viewSettings={DEFAULT_VIEW_SETTINGS}
+      onViewSettingsChange={vi.fn()}
+    />
+  );
 }
 
 let latestFields: TitlePageField[] = [];

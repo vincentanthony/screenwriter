@@ -1,16 +1,21 @@
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { EditorContent } from '@tiptap/react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { useScreenplayEditor } from '@/editor';
+import { dispatchPageBreakPositions } from '@/editor/extensions/pageBreakDecoration';
 import { docToScreenplay } from '@/editor/serialization/fromTiptap';
 import type { TipTapDoc } from '@/editor/serialization/types';
 import { parse } from '@/fountain/parse';
 import { serialize } from '@/fountain/serialize';
-import type { TitlePageField } from '@/fountain/types';
+import type { ScreenplayElement, TitlePageField } from '@/fountain/types';
 import { useAutosave } from '@/hooks/useAutosave';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import { useViewSettings } from '@/hooks/useViewSettings';
+import { BrowserMeasurer } from '@/pagination/browserMeasurer';
+import { paginate } from '@/pagination/paginate';
 import { getRepository } from '@/storage/repository';
 import type { Script } from '@/types/script';
 import { Drawer } from '@/features/drawer/Drawer';
@@ -23,12 +28,20 @@ interface Props {
   script: Script;
 }
 
+const PAGINATION_DEBOUNCE_MS = 100;
+
 /**
  * Session shell for a single script. Owns:
  *   - Title-page state (for the drawer's Title Page panel + the preview)
  *   - Initial-fountain resolution (script.fountain vs. any newer draft)
  *   - The TipTap editor instance (via useScreenplayEditor)
- *   - Autosave wiring
+ *   - Autosave wiring (300 ms debounced main save)
+ *   - View settings (localStorage-backed preferences)
+ *   - Pagination wiring: a BrowserMeasurer singleton tied to this
+ *     shell's lifetime, plus a 100 ms debounced paginate() that
+ *     dispatches page-break positions into the editor's decoration
+ *     plugin. The plugin never touches the document — breaks are
+ *     visual-only so the Fountain source stays byte-stable.
  *
  * Also acts as the "mode orchestrator": reads the drawer's active panel
  * and, if that panel declares a MainArea override, hides the editor
@@ -44,6 +57,8 @@ export function ScriptEditor({ script }: Props) {
     draftUpdatedAt: number;
   } | null>(null);
   const [titlePage, setTitlePage] = useState<TitlePageField[] | null>(null);
+
+  const { settings: viewSettings, update: updateViewSettings } = useViewSettings();
 
   // Resolve the starting Fountain once per script: if a newer draft row
   // exists, surface the banner and let the user pick. Otherwise boot the
@@ -110,23 +125,95 @@ export function ScriptEditor({ script }: Props) {
     setPendingDraft(null);
   };
 
+  // ── Pagination wiring ────────────────────────────────────────────────
+  // The BrowserMeasurer owns an offscreen measurement container; it's
+  // created once per ScriptEditor mount and disposed on unmount so we
+  // don't leak DOM nodes when the user navigates between scripts.
+  const measurerRef = useRef<BrowserMeasurer | null>(null);
+  useEffect(() => {
+    measurerRef.current = new BrowserMeasurer();
+    return () => {
+      measurerRef.current?.dispose();
+      measurerRef.current = null;
+    };
+  }, []);
+
+  const titlePageRef = useRef(titlePage);
+  useEffect(() => {
+    titlePageRef.current = titlePage;
+  }, [titlePage]);
+
+  const showPageBreaks = viewSettings.showPageBreaks;
+  const showPageBreaksRef = useRef(showPageBreaks);
+  useEffect(() => {
+    showPageBreaksRef.current = showPageBreaks;
+  }, [showPageBreaks]);
+
+  // Core pagination work. Debounced at 100 ms (shorter than the 300 ms
+  // autosave because pagination is cheap thanks to the measurement
+  // cache and writers want the visual break to track their typing).
+  const runPagination = useCallback(() => {
+    if (!editor) return;
+    // Feature-off: dispatch empty positions to clear any stale markers.
+    if (!showPageBreaksRef.current) {
+      dispatchPageBreakPositions(editor.view, []);
+      return;
+    }
+    const measurer = measurerRef.current;
+    if (!measurer) return;
+
+    const json = editor.getJSON() as unknown as TipTapDoc;
+    const elements = docToScreenplay(json, titlePageRef.current);
+    const pages = paginate(elements, measurer);
+
+    const positions = computePageBreakDocPositions(editor, elements, pages);
+    dispatchPageBreakPositions(editor.view, positions);
+  }, [editor]);
+
+  const paginateDebounced = useDebouncedCallback(runPagination, PAGINATION_DEBOUNCE_MS);
+
+  // Fire pagination whenever the editor's content changes.
+  useEffect(() => {
+    if (!editor) return;
+    const handler = () => paginateDebounced();
+    editor.on('update', handler);
+    // Kick once so markers land on initial load without waiting for
+    // the first keystroke.
+    paginateDebounced();
+    return () => {
+      editor.off('update', handler);
+    };
+  }, [editor, paginateDebounced]);
+
+  // Re-run (synchronously via flush so the effect doesn't drift into
+  // the next tick) whenever the "show page breaks" toggle flips.
+  useEffect(() => {
+    if (!editor) return;
+    paginateDebounced();
+    paginateDebounced.flush();
+  }, [showPageBreaks, editor, paginateDebounced]);
+
   // ── Mode orchestration ───────────────────────────────────────────────
-  // The drawer's active panel (if any) decides whether the main area
-  // still renders the editor or swaps in an override (e.g. Title Page
-  // preview). Both sides read the same drawer state from the URL so
-  // there's no second source of truth.
   const { state: drawerState } = useDrawerState();
   const activePanel =
     drawerState.kind === 'panel' ? findDrawerPanel(drawerState.panelId) : null;
   const MainArea = activePanel?.MainArea ?? null;
 
+  const drawerProps = useMemo(
+    () => ({
+      titlePage,
+      onTitlePageUpdate: handleTitlePageUpdate,
+      viewSettings,
+      onViewSettingsChange: updateViewSettings,
+    }),
+    [titlePage, handleTitlePageUpdate, viewSettings, updateViewSettings],
+  );
+
   return (
     <div className="grid min-h-screen grid-cols-[auto_1fr]">
-      <Drawer titlePage={titlePage} onTitlePageUpdate={handleTitlePageUpdate} />
+      <Drawer {...drawerProps} />
 
       <main className="flex min-w-0 flex-col">
-        {/* Top bar — visible across all modes so the writer never loses
-            their "where am I / what's being saved" context. */}
         <div className="container flex-shrink-0 pb-4 pt-8">
           <div className="mb-6">
             <Button asChild variant="ghost" size="sm">
@@ -142,11 +229,6 @@ export function ScriptEditor({ script }: Props) {
           </div>
         </div>
 
-        {/* Mode-specific body. The editor-view div is ALWAYS rendered so
-            the TipTap instance keeps its undo history + initial hydration
-            across mode switches; when a MainArea override is active, we
-            just flip `hidden` on this wrapper. See the integration test
-            that asserts the same DOM reference survives the toggle. */}
         <div className="flex min-h-0 flex-1 flex-col">
           <div
             data-testid="editor-view"
@@ -185,4 +267,55 @@ export function ScriptEditor({ script }: Props) {
       </main>
     </div>
   );
+}
+
+/**
+ * Translate pagination output into ProseMirror doc positions suitable
+ * for widget decorations.
+ *
+ * For each page after the first, we emit one break indicator BEFORE
+ * the block that opens that page. Block index in the TipTap doc is
+ * the count of non-title-page elements up to (but not including) the
+ * first PageElement's originalIndex, because screenplayToDoc filters
+ * title-page out when it builds the doc.
+ */
+function computePageBreakDocPositions(
+  editor: import('@tiptap/core').Editor,
+  elements: ScreenplayElement[],
+  pages: import('@/pagination/types').Page[],
+): number[] {
+  if (pages.length <= 1) return [];
+
+  const doc = editor.state.doc;
+  // Precompute cumulative top-level node starts so we don't rewalk
+  // from the beginning for each boundary.
+  const blockStarts: number[] = [];
+  let offset = 0;
+  doc.forEach((child) => {
+    blockStarts.push(offset);
+    offset += child.nodeSize;
+  });
+
+  const positions: number[] = [];
+  for (let p = 1; p < pages.length; p++) {
+    const firstSlot = pages[p].elements[0];
+    if (!firstSlot) continue;
+    const blockIndex = originalIndexToBlockIndex(elements, firstSlot.originalIndex);
+    // Defensive: if the element array and the doc disagree (e.g. an
+    // unfinished transaction mid-render), skip rather than crash.
+    if (blockIndex < 0 || blockIndex >= blockStarts.length) continue;
+    positions.push(blockStarts[blockIndex]);
+  }
+  return positions;
+}
+
+function originalIndexToBlockIndex(
+  elements: ScreenplayElement[],
+  originalIndex: number,
+): number {
+  let blockIndex = 0;
+  for (let i = 0; i < originalIndex; i++) {
+    if (elements[i].type !== 'title-page') blockIndex++;
+  }
+  return blockIndex;
 }

@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import { ScrollText, type LucideIcon } from 'lucide-react';
+import { Ruler, ScrollText, type LucideIcon } from 'lucide-react';
 import type { TitlePageField } from '@/fountain/types';
+import type { ViewSettings } from '@/hooks/useViewSettings';
 
 /**
  * Contract every drawer panel agrees to. New panels can extend this
@@ -12,6 +13,10 @@ export interface DrawerPanelProps {
   titlePage: TitlePageField[] | null;
   /** Replace the title-page fields. Triggers live autosave through ScriptEditor. */
   onTitlePageUpdate: (fields: TitlePageField[]) => void;
+  /** Current view-level preferences (page breaks, future rulers/scene numbers/etc.). */
+  viewSettings: ViewSettings;
+  /** Merge-style update of view preferences. Persists to localStorage. */
+  onViewSettingsChange: (patch: Partial<ViewSettings>) => void;
 }
 
 /**
@@ -57,6 +62,16 @@ export const DRAWER_PANELS: readonly DrawerPanel[] = [
     MainArea: lazy(() =>
       import('./panels/TitlePagePreview').then((m) => ({ default: m.TitlePagePreview })),
     ),
+  },
+  {
+    id: 'viewSettings',
+    label: 'View settings',
+    icon: Ruler,
+    Component: lazy(() =>
+      import('./panels/ViewSettingsPanel').then((m) => ({ default: m.ViewSettingsPanel })),
+    ),
+    // No MainArea — the settings panel leaves the editor visible so the
+    // writer can see their toggles take effect immediately.
   },
 ] as const;
 

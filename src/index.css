@@ -120,4 +120,18 @@
   .sw-autocomplete-decoration {
     background: transparent;
   }
+
+  /* Live page-break indicator injected as a ProseMirror widget. Purely
+     visual; the surrounding editor document is never modified so the
+     Fountain source stays byte-stable whether or not breaks are shown. */
+  .sw-page-break-widget {
+    @apply my-4 flex select-none items-center gap-2 text-xs;
+    @apply text-muted-foreground;
+  }
+  .sw-page-break-widget__line {
+    @apply flex-1 border-t-2 border-dashed border-border;
+  }
+  .sw-page-break-widget__label {
+    @apply shrink-0 font-screenplay uppercase tracking-wider;
+  }
 }
