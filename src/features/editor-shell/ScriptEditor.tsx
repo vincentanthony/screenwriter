@@ -18,6 +18,7 @@ import type { Script } from '@/types/script';
 import { Drawer } from '@/features/drawer/Drawer';
 import { findDrawerPanel } from '@/features/drawer/panels';
 import { useDrawerState } from '@/features/drawer/useDrawerState';
+import { ExportMenu, type ExportPayload } from './ExportMenu';
 import { SaveIndicator } from './SaveIndicator';
 import { DraftRestoreBanner } from './DraftRestoreBanner';
 
@@ -203,6 +204,38 @@ export function ScriptEditor({ script }: Props) {
     paginateDebounced.flush();
   }, [editor, hydrated, showPageBreaks, paginateDebounced]);
 
+  /**
+   * Snapshot the inputs the export menu needs at click time. Captured
+   * lazily (caller invokes the callback) so the snapshot is always
+   * fresh — not stale from when the component last rendered.
+   *
+   * The export uses the SAME paginate() the live editor uses, with a
+   * fresh BrowserMeasurer instance. We deliberately do NOT reuse
+   * `measurerRef.current` here: an export should reflect the document
+   * exactly as it stands now, with no risk of a stale measurement
+   * cache entry from before a mid-session font load shifted heights.
+   */
+  const getExportPayload = useCallback((): ExportPayload => {
+    if (!editor) {
+      return { scriptTitle: script.title, elements: [], titlePage: null, pages: [] };
+    }
+    const json = editor.getJSON() as unknown as TipTapDoc;
+    const elements = docToScreenplay(json, titlePageRef.current);
+
+    const exportMeasurer = new BrowserMeasurer();
+    try {
+      const pages = paginate(elements, exportMeasurer);
+      return {
+        scriptTitle: script.title,
+        elements,
+        titlePage: titlePageRef.current,
+        pages,
+      };
+    } finally {
+      exportMeasurer.dispose();
+    }
+  }, [editor, script.title]);
+
   // ── Mode orchestration ───────────────────────────────────────────────
   const { state: drawerState } = useDrawerState();
   const activePanel =
@@ -227,13 +260,17 @@ export function ScriptEditor({ script }: Props) {
         className="flex min-h-0 min-w-0 flex-1 flex-col"
         data-testid="editor-main"
       >
-        {/* Script title + Save Indicator stay pinned above the scrolling body. */}
+        {/* Script title + Save Indicator + Export menu stay pinned above
+            the scrolling body. */}
         <div className="flex-shrink-0 border-b bg-background/60 px-6 py-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <h1 className="truncate text-lg font-semibold tracking-tight">
               {script.title}
             </h1>
-            <SaveIndicator state={state} />
+            <div className="flex items-center gap-3">
+              <SaveIndicator state={state} />
+              <ExportMenu getExportPayload={getExportPayload} />
+            </div>
           </div>
         </div>
 
